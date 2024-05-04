@@ -43,7 +43,7 @@ To run the script, you need to have the following dependencies installed:
 3. Modify the script according to your needs, if necessary.
 4. Run the script using the following command:
     ```
-    python spooker.py
+    python EON_SPOOKER.py
     ```
 5. The script will generate an `import.yaml` and an `export.yaml` next to the script's location.
 

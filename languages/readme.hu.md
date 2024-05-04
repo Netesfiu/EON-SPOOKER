@@ -42,7 +42,7 @@ A szkript futtatásához az alábbi függőségek telepítése szükséges:
 3. Módosítsd a szkriptet szükség szerint.
 4. Indítsd el a szkriptet a következő parancs futtatásával:
     ```
-    python spooker.py
+    python EON_SPOOKER.py
     ```
 5. A szkript létrehoz egy `import.yaml` és egy `export.yaml` fájlt a szkript helyén.
 
