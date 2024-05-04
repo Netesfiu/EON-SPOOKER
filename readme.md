@@ -30,7 +30,7 @@ To run the script, you need to have the following dependencies installed:
 7. after you defined your date interval press the checkmark icon.
 8. click on the "export" link in the report or choose the export option in the the **≡** menu.
 9. in the export window choose the `Profile Table` then choose `Comma separated values (.csv)`. Make sure that `Include status` is **unchecked!**
-10. click on export and wit for the file to be downloaded.
+10. click on export and wait for the file to be downloaded.
 
 ## Script Usage
 
