@@ -1,15 +1,29 @@
 import csv
 import yaml
+import os
 from datetime import datetime
 from tkinter import Tk, filedialog
 from tqdm import tqdm
+import argparse
+
+parser = argparse.ArgumentParser(description="Convert E.ON CSV data to YAML")
+parser.add_argument("-p", "--path", metavar='"path.csv"', help="path for the input file", required=False)
 
 def select_csv_file() -> str:
-    root = Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-    csv_file = filedialog.askopenfilename(title="Select CSV file", filetypes=(("CSV files", "*.csv"), ("All files", "*.*")))
-    root.destroy()
+    csv_file = parser.parse_args().path
+    if csv_file:
+        if not os.path.exists(csv_file):
+            raise FileNotFoundError("File not found. Please check the file path.")
+        elif not csv_file.endswith(".csv"):
+            raise ValueError("Invalid file type. Please select a CSV file.")
+        else: 
+            csv_file = parser.parse_args().input
+    else:
+        root = Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        csv_file = filedialog.askopenfilename(title="Select CSV file", filetypes=(("CSV files", "*.csv"), ("All files", "*.*")))
+        root.destroy()
     return csv_file
 
 def process_data(reader, filter_row_index:int, filter_condition:str, progress_bar) -> list[dict]:

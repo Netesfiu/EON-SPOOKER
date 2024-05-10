@@ -40,10 +40,12 @@ A szkript futtatásához az alábbi függőségek telepítése szükséges:
     pip install -r requirements.txt
     ```
 3. Módosítsd a szkriptet szükség szerint.
-4. Indítsd el a szkriptet a következő parancs futtatásával:
-    ```
+4. Indítsd el a szkriptet:
+    ```pwsh
     python EON_SPOOKER.py
     ```
+    ```pwsh
+    python EON_SPOOKER.py -p "\elérési\út\az\adatokhoz.csv"
 5. A szkript létrehoz egy `import.yaml` és egy `export.yaml` fájlt a szkript helyén.
 
 Alternatív megoldásként használhatja a lefordított végrehajtható fájlt `EON_SPOOKER.exe`, ami [Innen letölthető](https://github.com/Netesfiu/EON_SPOOKER/releases/tag/main). Egyszerűen duplán kattints a futtatható fájlra a szkript futtatásához.
@@ -72,8 +74,10 @@ data:
   stats:
     - start: "2021-01-02 00:00:00+02:00"
       sum: 123
+      state: 123
     - start: "2021-01-02 01:00:00+02:00"
       sum: 456
+      state: 456
     - ...
 ```
 

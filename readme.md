@@ -41,8 +41,13 @@ To run the script, you need to have the following dependencies installed:
     ```
 3. Modify the script according to your needs, if necessary.
 4. Run the script using the following command:
-    ```
+    1. using the GUI file selector:
+    ```pwsh
     python EON_SPOOKER.py
+    ```
+    2. using arguments:
+    ```pwsh
+    python EON_SPOOKER.py -p "path\to\your\file.csv"
     ```
 5. The script will generate an `import.yaml` and an `export.yaml` next to the script's location.
 
@@ -73,7 +78,9 @@ data:
   stats:
     - start: "2021-01-02 00:00:00+02:00"
       sum: 123
+      state: 123
     - start: "2021-01-02 01:00:00+02:00"
+      sum: 456
       sum: 456
     - ...
 ```
