@@ -4,16 +4,16 @@ Read in other languages:
 
 # E.ON W1000 "Spooker"
 
-Ez a repó egy Python szkriptet tartalmaz, amely adatokat az [E.ON W1000 portálról](https://energia.eon-hungaria.hu/W1000/) átalakítani egy nyers YAML fájlba. Ez a YAML fájl aztán másolható a `recorder.import_statistics` szolgáltatásba, ha telepítve van a [frenck/Spook](https://github.com/frenck/spook) integráció. Ajánlom, hogy ezt használd a [hass-w1000-portal](https://github.com/ZsBT/hass-w1000-portal) projektben találhatóval együtt.
+Ez a repó egy Python szkriptet tartalmaz, amely az [E.ON W1000 portálról](https://energia.eon-hungaria.hu/W1000/) portálról importált adatokat át tudja alakítani egy nyers YAML fájlba. Ez a YAML fájl aztán másolható a `recorder.import_statistics` szolgáltatásba, ha telepítve van a [frenck/Spook](https://github.com/frenck/spook) integráció. Ajánlom, hogy ezt használd a [hass-w1000-portal](https://github.com/ZsBT/hass-w1000-portal) integráció által kezelt `sensor` entitásokhoz, ha vannak hiányzó adataid jelszóváltoztatás, vagy E.ON- karbantartás miatt.
 
 ## Követelmények
 
-A szkript futtatásához az alábbi függőségek telepítése szükséges:
+A szkript futtatásához az alábbiak telepítése szükséges:
 
 - Python 3.12.0 (opcionális)
 - Hozzáférés az E.ON W1000 portálhoz
-- Telepített [Spook](https://github.com/frenck/spook)
-    - kérlek, olvasd el az [integráció dokumentációját](https://spook.boo) a telepítéshez
+- Telepített [Spook](https://github.com/frenck/spook) integráció 
+    - A Spook telepítéséhez és használatához az [integráció dokumentációja](https://spook.boo) irányadó.
 
 ## Adatok beszerzése az E.ON W1000-ről
 
@@ -27,7 +27,7 @@ A szkript futtatásához az alábbi függőségek telepítése szükséges:
 4. Az "ok" gombra kattintva látnod kell a jelentés adatait.
 5. A jelentés oldalán kattints a "day" gombra, majd válaszd ki a "custom" lehetőséget.
 6. Írd be a jelentés időintervallumát. A formátum legyen `dd/hh/éééé` (nap/hónap/év).
-7. Miután megadtad az időintervallumot, kattints a pipa ikonra.
+7. Miután megadtad az időintervallumot, kattints a pipa ikonra. Ha 60 napnál hosszab intervallumot választottál, akkor azadatok nem fognak megjelenni.
 8. Kattints az "export" linkre a jelentésben, vagy válaszd az exportálás lehetőséget a **≡** menüben.
 9. Az export ablakban válaszd ki a `Profile Table` lehetőséget, majd válaszd a `Comma separated values (.csv)` formátumot. Győződj meg róla, hogy a `Include status` opció **nincs bejelölve!**
 10. Kattints az exportálásra, majd várj, amíg a fájl letöltődik.
@@ -35,10 +35,10 @@ A szkript futtatásához az alábbi függőségek telepítése szükséges:
 ## Szkript használata
 
 1. Klónozd ezt a tárolót a helyi gépedre.
-2. Telepítsd a szükséges függőségeket a következő parancs futtatásával:
-    ```
-    pip install -r requirements.txt
-    ```
+2. Telepítsd a szükséges python modulokat a következő parancs futtatásával:
+```
+pip install -r requirements.txt
+```
 3. Módosítsd a szkriptet szükség szerint.
 4. Indítsd el a szkriptet:
     ```pwsh
@@ -46,12 +46,14 @@ A szkript futtatásához az alábbi függőségek telepítése szükséges:
     ```
     ```pwsh
     python EON_SPOOKER.py -p "\elérési\út\az\adatokhoz.csv"
-5. A szkript létrehoz egy `import.yaml` és egy `export.yaml` fájlt a szkript helyén.
+    ```
+6. A szkript létrehoz egy `import.yaml` és egy `export.yaml` fájlt a szkript helyén.
 
 Alternatív megoldásként használhatja a lefordított végrehajtható fájlt `EON_SPOOKER.exe`, ami [Innen letölthető](https://github.com/Netesfiu/EON_SPOOKER/releases/tag/main). Egyszerűen duplán kattints a futtatható fájlra a szkript futtatásához.
 
 ## Adatok importálása a Homeassistantbe
-
+> [!CAUTION]
+>  Nagyon ajánlott biztonsági mentést készíteni, mielőtt bármilyen módosítást végzel a szenzor előzményeinek statisztikáiban, mivel ezek nem visszavonhatók!
 1. Lépj a fejlesztői eszközök>szolgáltatások menüpontra.
 2. Keresd meg a `recorder.import_statistics` szolgáltatást.
 3. Válaszd ki a mérőóra szenzorodat.
@@ -80,8 +82,6 @@ data:
       state: 456
     - ...
 ```
-
-**!!FIGYELEM!!** Nagyon ajánlott biztonsági mentést készíteni, mielőtt bármilyen módosítást végzel a szenzor előzményeinek statisztikáiban, mivel ezek nem visszavonhatók!
 
 ## Hozzájárulás
 
