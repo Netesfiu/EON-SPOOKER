@@ -8,7 +8,6 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Convert E.ON CSV data to YAML")
 parser.add_argument("-p", "--path", metavar='"path.csv"', help="path for the input file", required=False)
-DISPLAY = os.environ.get('DISPLAY')
 
 def select_csv_file() -> str:
     csv_file = parser.parse_args().path
