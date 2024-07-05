@@ -8,6 +8,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Convert E.ON CSV data to YAML")
 parser.add_argument("-p", "--path", metavar='"path.csv"', help="path for the input file", required=False)
+DISPLAY = os.environ.get('DISPLAY')
 
 def select_csv_file() -> str:
     csv_file = parser.parse_args().path
@@ -19,11 +20,15 @@ def select_csv_file() -> str:
         else: 
             csv_file = parser.parse_args().input
     else:
-        root = Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        csv_file = filedialog.askopenfilename(title="Select CSV file", filetypes=(("CSV files", "*.csv"), ("All files", "*.*")))
-        root.destroy()
+        if os.environ.get('DISPLAY','') is None:
+            raise EnvironmentError('Unable to run without a GUI. Use the "--path" argument to define the filepath')
+        else:
+            root = Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            csv_file = filedialog.askopenfilename(title="Select CSV file", filetypes=(("CSV files", "*.csv"), ("All files", "*.*")))
+            root.destroy()
+
     return csv_file
 
 def process_data(reader, filter_row_index:int, filter_condition:str, progress_bar) -> list[dict]:
