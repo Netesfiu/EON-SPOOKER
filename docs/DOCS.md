@@ -1,0 +1,347 @@
+# EON-SPOOKER Home Assistant Add-on Documentation
+
+## Overview
+
+EON-SPOOKER is a comprehensive Home Assistant add-on designed to process energy data from EON (E.ON) energy provider and seamlessly integrate it into Home Assistant's energy dashboard. The add-on supports multiple data formats and provides a user-friendly web interface for file management and processing.
+
+## Architecture
+
+### Components
+
+1. **Web Application** (`addon/web_app.py`)
+   - Flask-based web interface
+   - File upload and management
+   - Processing controls
+   - Home Assistant integration
+
+2. **File Watcher** (`addon/file_watcher.py`)
+   - Monitors input folder for new files
+   - Automatic processing when enabled
+   - Real-time file detection
+
+3. **Core Processing Engine** (`eon_spooker/`)
+   - Modular parser architecture
+   - Format auto-detection
+   - Multi-resolution data processing
+   - YAML generation for Home Assistant
+
+4. **Web Server** (Nginx + Supervisor)
+   - Reverse proxy for the Flask app
+   - Static file serving
+   - Process management
+
+### Data Flow
+
+```
+Input Files → Format Detection → Parser Selection → Data Processing → YAML Generation → Home Assistant Import
+```
+
+## Supported Data Formats
+
+### 1. Legacy Format (Web Portal CSV)
+- **Source**: EON web portal downloads
+- **Interval**: Mixed (15-min, hourly, daily)
+- **Columns**: POD Name, Variable name, Time, Value [kWh]
+- **Use Case**: Historical data from web portal
+
+### 2. AP_AM Format (Email Attachments)
+- **Source**: Email attachments from EON
+- **Interval**: 15-minute intervals
+- **Columns**: Dátum/Idő, +A (Import), -A (Export)
+- **Features**: Contains summary rows (MAXIMUM, ÖSSZEG)
+- **Use Case**: Recent detailed consumption data
+
+### 3. 180_280 Format (Email Attachments)
+- **Source**: Email attachments from EON
+- **Interval**: Daily cumulative readings
+- **Columns**: Dátum, DP_1-1:1.8.0*0 (Import), DP_1-1:2.8.0*0 (Export)
+- **Features**: Actual meter readings (cumulative values)
+- **Use Case**: Monthly billing data with meter readings
+
+## Configuration Reference
+
+### Core Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `auto_process` | boolean | `true` | Enable automatic file processing |
+| `input_folder` | string | `/share/eon-data` | Input file monitoring folder |
+| `output_folder` | string | `/share/eon-output` | Output YAML file location |
+| `resolution` | enum | `hourly` | Data resolution: `15min`, `hourly`, `daily`, `all` |
+| `log_level` | enum | `info` | Logging level |
+| `auto_import` | boolean | `false` | Auto-import to Home Assistant |
+
+### Advanced Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `file_patterns` | list | `["*.csv", "*.xlsx"]` | File patterns to monitor |
+| `backup_files` | boolean | `true` | Backup processed files |
+| `notification_service` | string | `""` | HA notification service |
+
+## API Reference
+
+### Web Interface Endpoints
+
+#### GET `/`
+Main dashboard interface
+
+#### POST `/upload`
+File upload endpoint
+- **Parameters**: `file` (multipart/form-data)
+- **Returns**: Redirect to dashboard with status
+
+#### GET `/process/<filename>`
+Process specific file
+- **Parameters**: `filename` (string)
+- **Returns**: Redirect to dashboard with results
+
+#### GET `/process_all`
+Process all files in input folder
+- **Returns**: Redirect to dashboard with results
+
+#### GET `/import_statistics/<filename>`
+Import statistics to Home Assistant
+- **Parameters**: `filename` (string, without extension)
+- **Returns**: Redirect to dashboard with import status
+
+#### GET `/download/<filename>`
+Download output file
+- **Parameters**: `filename` (string)
+- **Returns**: File download
+
+#### GET `/delete/<folder>/<filename>`
+Delete file from input or output folder
+- **Parameters**: 
+  - `folder` (string): `input` or `output`
+  - `filename` (string)
+- **Returns**: Redirect to dashboard
+
+#### GET `/health`
+Health check endpoint
+- **Returns**: JSON status
+
+#### GET `/api/status`
+API status endpoint
+- **Returns**: JSON with system status and statistics
+
+## File Processing Details
+
+### Format Detection Algorithm
+
+1. **Column Analysis**: Examine CSV headers and structure
+2. **Content Sampling**: Analyze first few rows for patterns
+3. **Date Format Detection**: Identify date/time column formats
+4. **Data Type Inference**: Determine numeric vs. text columns
+5. **Summary Row Detection**: Look for aggregate rows
+
+### Data Processing Pipeline
+
+1. **File Validation**: Check file format and integrity
+2. **Data Cleaning**: Remove invalid rows and normalize data
+3. **Time Series Conversion**: Convert to standardized datetime format
+4. **Resolution Processing**: Generate requested time resolutions
+5. **Cumulative Calculation**: Handle meter readings vs. consumption
+6. **YAML Generation**: Create Home Assistant compatible output
+
+### Output File Structure
+
+#### Import YAML (`*_import.yaml`)
+```yaml
+# Home Assistant statistics data for import
+# Generated by EON-SPOOKER v3.0
+# Data points: 744
+
+- start: '2025-05-01T00:00:00'
+  sum: 1234.567
+  state: 1234.567
+- start: '2025-05-01T01:00:00'
+  sum: 1236.789
+  state: 1236.789
+```
+
+#### Export YAML (`*_export.yaml`)
+```yaml
+# Home Assistant statistics data for export
+# Generated by EON-SPOOKER v3.0
+# Data points: 744
+
+- start: '2025-05-01T00:00:00'
+  sum: 987.654
+  state: 987.654
+- start: '2025-05-01T01:00:00'
+  sum: 989.876
+  state: 989.876
+```
+
+## Home Assistant Integration
+
+### Energy Dashboard Setup
+
+1. **Process Data**: Upload and process your EON files
+2. **Import Statistics**: Use the web interface to import statistics
+3. **Configure Dashboard**: 
+   - Go to Settings → Dashboards → Energy
+   - Add electricity grid consumption: `sensor.eon_import`
+   - Add electricity grid return: `sensor.eon_export`
+
+### Manual Statistics Import
+
+```yaml
+service: recorder.import_statistics
+data:
+  has_mean: false
+  has_sum: true
+  statistic_id: sensor.eon_import
+  source: recorder
+  unit_of_measurement: kWh
+  stats: !include /share/eon-output/your_file_import.yaml
+```
+
+### Automation Examples
+
+#### Auto-process New Files
+```yaml
+automation:
+  - alias: "EON Data Auto Process"
+    trigger:
+      - platform: event
+        event_type: folder_watcher
+        event_data:
+          action: created
+          path: "/share/eon-data"
+    action:
+      - service: rest_command.eon_process_all
+```
+
+#### Notification on Processing
+```yaml
+automation:
+  - alias: "EON Processing Notification"
+    trigger:
+      - platform: webhook
+        webhook_id: eon_processing_complete
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "EON Data Processed"
+          message: "New energy data has been processed and imported"
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### Files Not Processing
+- **Check Format**: Ensure file matches supported formats
+- **Verify Permissions**: Check file system permissions
+- **Log Analysis**: Review add-on logs for errors
+
+#### Import Failures
+- **Recorder Component**: Ensure Home Assistant recorder is enabled
+- **Statistics Service**: Verify `recorder.import_statistics` service exists
+- **Data Format**: Check YAML file structure
+
+#### Web Interface Issues
+- **Port Conflicts**: Ensure port 8099 is available
+- **Browser Cache**: Clear browser cache and cookies
+- **Network Access**: Check Home Assistant network configuration
+
+### Log Analysis
+
+#### Enable Debug Logging
+```yaml
+log_level: debug
+```
+
+#### Common Log Messages
+- `Successfully parsed X records`: File processed correctly
+- `Format detected: ap_am`: Format auto-detection working
+- `Error parsing file`: File format or content issue
+- `Import failed`: Home Assistant integration problem
+
+### Performance Optimization
+
+#### Large File Handling
+- Process files individually for better memory usage
+- Use appropriate resolution (daily for large datasets)
+- Monitor system resources during processing
+
+#### Network Optimization
+- Use local file access when possible
+- Compress large YAML files if needed
+- Batch process multiple files
+
+## Development
+
+### Local Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/Netesfiu/EON-SPOOKER.git
+cd EON-SPOOKER
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run locally
+python EON_SPOOKER_v3.py --help
+```
+
+### Testing
+
+```bash
+# Test format detection
+python -m eon_spooker.format_detector sample_file.csv
+
+# Test parsing
+python -m eon_spooker.ap_am_parser sample_ap_am.csv
+
+# Dry run processing
+python EON_SPOOKER_v3.py --dry-run sample_file.csv
+```
+
+### Building Add-on
+
+```bash
+# Build for multiple architectures
+docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t eon-spooker .
+
+# Test locally
+docker run -p 8099:8099 -v /path/to/data:/share eon-spooker
+```
+
+## Security Considerations
+
+### File Access
+- Input/output folders are sandboxed to `/share`
+- File uploads are validated for type and size
+- No arbitrary file system access
+
+### Network Security
+- Web interface only accessible within Home Assistant network
+- No external network access required
+- Optional Home Assistant API integration
+
+### Data Privacy
+- All processing happens locally
+- No data sent to external services
+- Files can be automatically deleted after processing
+
+## Support and Contributing
+
+### Getting Help
+- **GitHub Issues**: Report bugs and request features
+- **Discussions**: Community support and questions
+- **Documentation**: Comprehensive guides and examples
+
+### Contributing
+- **Code**: Submit pull requests for improvements
+- **Documentation**: Help improve guides and examples
+- **Testing**: Test with different file formats and configurations
+
+### Roadmap
+- Additional energy provider support
+- Real-time data integration
+- Advanced analytics and reporting
+- Mobile app integration
