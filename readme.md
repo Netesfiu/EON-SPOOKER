@@ -1,94 +1,213 @@
-Read in other languages: 
-<kbd>[<img title="Magyar" alt="Magyar" src="https://cdn.statically.io/gh/hjnilsson/country-flags/master/svg/hu.svg" width="22">](languages/readme.hu.md)</kbd> 
-<kbd> [<img title="English" alt="English" src="https://cdn.statically.io/gh/hjnilsson/country-flags/master/svg/us.svg" width="22">](languages/readme.en.md)</kbd>
+# EON-SPOOKER Home Assistant Add-on
 
-# E.ON W1000 "Spooker"
+A comprehensive Home Assistant add-on for processing EON energy data and importing statistics into Home Assistant's energy dashboard.
 
-This repository contains a Python script that can scrape raw data from the [E.ON W1000 portal](https://energia.eon-hungaria.hu/W1000/) and convert it to a raw YAML file. This YAML file can then be copied to the `recorder.import_statistics` service if you have the [frenck/Spook](https://github.com/frenck/spook) integration installed. I recommend using this with the [hass-w1000-portal](https://github.com/ZsBT/hass-w1000-portal) from ZsBT.
+## Features
 
-## Requirements
+- **Multi-format Support**: Handles legacy web portal CSV, AP_AM format (15-min intervals), and 180_280 format (daily cumulative)
+- **Web Interface**: User-friendly web UI for file upload and processing
+- **Auto-processing**: Automatically processes new files when uploaded
+- **Direct HA Integration**: Import statistics directly into Home Assistant
+- **File Monitoring**: Watches input folder for new files
+- **Multiple Resolutions**: Support for 15-minute, hourly, and daily data
+- **Notifications**: Optional Home Assistant notifications for processing status
 
-To run the script, you need to have the following dependencies installed:
+## Installation
 
-- Python 3.12.0 (optional)
-- Access to the E.ON W1000 portal
-- [Spook](https://github.com/frenck/spook) installed
-    - please refer to the [integration's documentation](https://spook.boo) for the installation
+### Method 1: Add Repository to Home Assistant
 
-## Aquiring data from E.ON W1000
+1. In Home Assistant, go to **Supervisor** → **Add-on Store**
+2. Click the **⋮** menu in the top right corner
+3. Select **Repositories**
+4. Add this repository URL: `https://github.com/Netesfiu/EON-SPOOKER`
+5. Find "EON-SPOOKER" in the add-on store and click **Install**
 
-1. log in to your W1000 portal, [here](https://energia.eon-hungaria.hu/W1000/Account/Login).
-2. Create a new workarea if you haven't created one
-3. inside a workarea, create a new report with the "+" icon and add the following curves:
-    - +A
-    - -A
-    - DP_1-1:1.8.0*0
-    - DP_1-1:2.8.0*0
-4. after clicking "ok" you should be able to see the data on the report
-5. on the report pager click on the "day" and select "custom"
-6. type in your report interval. it shouls be in `dd/mm/yyyy` format.
-7. after you defined your date interval press the checkmark icon.
-8. click on the "export" link in the report or choose the export option in the the **≡** menu.
-9. in the export window choose the `Profile Table` then choose `Comma separated values (.csv)`. Make sure that `Include status` is **unchecked!**
-10. click on export and wait for the file to be downloaded.
+### Method 2: Manual Installation
 
-## Script Usage
+1. Copy all addon files to `/addons/eon-spooker/` in your Home Assistant configuration
+2. Restart Home Assistant Supervisor
+3. The add-on will appear in the local add-ons section
 
-1. Clone this repository to your local machine.
-2. Install the required dependencies by running the following command:
-    ```
-    pip install -r requirements.txt
-    ```
-3. Modify the script according to your needs, if necessary.
-4. Run the script using the following command:
-    1. using the GUI file selector:
-    ```pwsh
-    python EON_SPOOKER.py
-    ```
-    2. using arguments:
-    ```pwsh
-    python EON_SPOOKER.py -p "path\to\your\file.csv"
-    ```
-5. The script will generate an `import.yaml` and an `export.yaml` next to the script's location.
+## Configuration
 
+### Basic Configuration
 
-Alternatively, you can use the compiled executable `EON_SPOOKER.exe` from [releases](https://github.com/Netesfiu/EON_SPOOKER/releases/tag/main). Simply double-click on the executable to run the script.
+```yaml
+auto_process: true
+input_folder: "/share/eon-data"
+output_folder: "/share/eon-output"
+resolution: "hourly"
+log_level: "info"
+auto_import: false
+```
 
-## importing data to Homeassistant
+### Configuration Options
 
-1. go to development tools>services
-2. search for `recorder.import_statistics`
-3. choose your utility meter sensor
-4. set the source to `recorder`
-5. use `kWh` measurement
-6. set `has a sum` to `on`
-7. under statistics paste the contents of your corresponding yaml file.
-8. click on `call_service`
-9. done! You now have all your stuff in the corresponding sensor.
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `auto_process` | boolean | `true` | Automatically process uploaded files |
+| `input_folder` | string | `/share/eon-data` | Folder to monitor for input files |
+| `output_folder` | string | `/share/eon-output` | Folder for processed YAML files |
+| `resolution` | string | `hourly` | Data resolution: `15min`, `hourly`, `daily`, or `all` |
+| `log_level` | string | `info` | Log level: `trace`, `debug`, `info`, `warning`, `error`, `fatal` |
+| `auto_import` | boolean | `false` | Automatically import statistics to Home Assistant |
+| `file_patterns` | list | `["*.csv", "*.xlsx"]` | File patterns to monitor |
+| `backup_files` | boolean | `true` | Backup processed files |
+| `notification_service` | string | `""` | Home Assistant notification service (e.g., `notify.mobile_app_phone`) |
 
-### Example yaml :
+### Advanced Configuration Example
+
+```yaml
+auto_process: true
+input_folder: "/share/eon-data"
+output_folder: "/share/eon-output"
+resolution: "hourly"
+log_level: "info"
+auto_import: true
+file_patterns:
+  - "*.csv"
+  - "*.xlsx"
+  - "*.xls"
+backup_files: true
+notification_service: "notify.mobile_app_phone"
+```
+
+## Usage
+
+### Web Interface
+
+1. Start the add-on
+2. Open the web UI (available in the add-on info panel)
+3. Upload your EON energy data files (CSV or Excel)
+4. Files will be automatically processed if `auto_process` is enabled
+5. Download the generated YAML files or import them directly to Home Assistant
+
+### File Upload Methods
+
+1. **Web Interface**: Drag & drop or browse files through the web UI
+2. **Direct Copy**: Copy files to the configured input folder (`/share/eon-data` by default)
+3. **Network Share**: If you have Samba add-on installed, access the share folder
+
+### Supported File Formats
+
+#### Legacy Format (Web Portal CSV)
+- Downloaded from EON's web portal
+- Contains mixed interval data
+- Columns: POD Name, Variable name, Time, Value [kWh]
+
+#### AP_AM Format (Email Attachments)
+- 15-minute interval data from email attachments
+- Columns: Dátum/Idő, +A, -A
+- Contains summary rows (MAXIMUM, ÖSSZEG)
+
+#### 180_280 Format (Email Attachments)
+- Daily cumulative meter readings from email attachments
+- Columns: Dátum, DP_1-1:1.8.0*0, DP_1-1:2.8.0*0
+- Contains actual meter readings (e.g., 31433 kWh)
+
+## Output Files
+
+The add-on generates three types of YAML files:
+
+1. **Import YAML** (`*_import.yaml`): For imported energy statistics
+2. **Export YAML** (`*_export.yaml`): For exported energy statistics  
+3. **Combined YAML** (`*.yaml`): Both import and export in one file
+
+These files are compatible with Home Assistant's `recorder.import_statistics` service.
+
+## Home Assistant Integration
+
+### Energy Dashboard
+
+1. Process your EON data files
+2. Import the generated statistics using the web interface
+3. Go to **Settings** → **Dashboards** → **Energy**
+4. Configure your energy sources using the imported statistics
+
+### Manual Statistics Import
+
+You can also manually import statistics using the Developer Tools:
+
 ```yaml
 service: recorder.import_statistics
 data:
   has_mean: false
   has_sum: true
-  statistic_id: sensor.w1000_import
+  statistic_id: sensor.eon_import
   source: recorder
   unit_of_measurement: kWh
-  stats:
-    - start: "2021-01-02 00:00:00+02:00"
-      sum: 123
-      state: 123
-    - start: "2021-01-02 01:00:00+02:00"
-      sum: 456
-      sum: 456
-    - ...
+  stats: !include /share/eon-output/your_file_import.yaml
 ```
 
-**!!WARNING!!** I Highly recommend making a backup before making any modifications in your sensor's history stats as it can not be undone!
+## Troubleshooting
 
+### Common Issues
 
+1. **Files not processing**: Check file format and ensure it matches supported formats
+2. **Import fails**: Verify Home Assistant has recorder component enabled
+3. **Web UI not accessible**: Check if port 8099 is available
+4. **Auto-processing not working**: Ensure `auto_process` is set to `true`
 
-## Contributing
+### Log Analysis
 
-If you find any issues or have suggestions for improvements, feel free to open an issue or submit a pull request.
+Check the add-on logs for detailed error information:
+
+1. Go to **Supervisor** → **EON-SPOOKER**
+2. Click **Logs** tab
+3. Look for error messages or warnings
+
+### File Format Detection
+
+The add-on automatically detects file formats, but you can verify detection:
+
+```bash
+# Check format detection
+python3 /app/EON_SPOOKER_v3.py --dry-run your_file.csv
+```
+
+## Development
+
+### Building the Add-on
+
+```bash
+# Build for multiple architectures
+docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t eon-spooker .
+```
+
+### Local Testing
+
+```bash
+# Run locally for testing
+docker run -p 8099:8099 -v /path/to/data:/share eon-spooker
+```
+
+## Support
+
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/Netesfiu/EON-SPOOKER/issues)
+- **Discussions**: Join discussions on [GitHub Discussions](https://github.com/Netesfiu/EON-SPOOKER/discussions)
+- **Documentation**: Full documentation available in the repository
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Changelog
+
+### Version 3.0.0
+- Complete rewrite as Home Assistant add-on
+- Web interface for file management
+- Multi-format support with auto-detection
+- Direct Home Assistant integration
+- File monitoring and auto-processing
+- Improved error handling and logging
+
+### Version 2.0.0
+- Added support for email attachment formats
+- Modular architecture with separate parsers
+- Enhanced YAML generation
+- Multiple resolution support
+
+### Version 1.0.0
+- Initial release
+- Basic CSV processing for web portal data
+- Simple YAML output generation
