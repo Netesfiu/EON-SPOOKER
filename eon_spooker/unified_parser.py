@@ -6,6 +6,7 @@ Handles all EON data formats with auto-detection
 import logging
 from typing import Dict, List, Optional, Union
 from pathlib import Path
+from datetime import datetime, timezone
 
 from .format_detector import detect_file_format, DataFormat
 from .csv_parser import CSVParser  # Legacy parser
@@ -167,6 +168,22 @@ class UnifiedParser:
             combined_data['formats'] = list(combined_data['formats'])
             combined_data['parsed_files'] = parsed_files
             
+            # Check if we have both cumulative and consumption data for original script processing
+            cumulative_file = None
+            consumption_file = None
+            
+            for parsed_file in parsed_files:
+                if parsed_file['format'] == 'cumulative_180_280':
+                    cumulative_file = parsed_file
+                elif parsed_file['format'] == 'ap_am':
+                    consumption_file = parsed_file
+            
+            # If we have both files, process using original script logic
+            if cumulative_file and consumption_file:
+                logger.info("Processing combined data using original script logic")
+                yaml_data = self.process_combined_data(cumulative_file, consumption_file)
+                combined_data['yaml_data'] = yaml_data
+            
             logger.info(f"Successfully combined data from {len(parsed_files)} files")
             return combined_data
             
@@ -232,6 +249,75 @@ class UnifiedParser:
             standardized['metadata']['total_records'] = len(hourly_records) + len(daily_records)
         
         return standardized
+    
+    def process_combined_data(self, cumulative_data: Dict, consumption_data: Dict) -> Dict:
+        """
+        Process combined cumulative and consumption data using original script logic
+        
+        Args:
+            cumulative_data: Daily cumulative readings from 180_280 format
+            consumption_data: 15-minute consumption data from AP_AM format
+            
+        Returns:
+            Combined processed data ready for YAML generation
+        """
+        logger.info("Processing combined cumulative and consumption data")
+        
+        try:
+            # Extract the data arrays using original script variable names
+            data_dp_ap = cumulative_data.get('daily_cumulative', {}).get('import', [])
+            data_dp_an = cumulative_data.get('daily_cumulative', {}).get('export', [])
+            data_ap = consumption_data.get('consumption_data', {}).get('import', [])
+            data_an = consumption_data.get('consumption_data', {}).get('export', [])
+            
+            # Use original script logic to generate YAML data
+            yaml_data_ap = self.process_day_data(data_dp_ap, data_ap, "import")
+            yaml_data_an = self.process_day_data(data_dp_an, data_an, "export")
+            
+            return {
+                'import': yaml_data_ap,
+                'export': yaml_data_an
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing combined data: {e}")
+            raise FileProcessingError(f"Failed to process combined data: {e}")
+    
+    def process_day_data(self, day_data: List[Dict], filter_data: List[Dict], desc: str) -> List[Dict]:
+        """
+        Process day data using original EON_SPOOKER.py script logic
+        
+        Args:
+            day_data: Daily cumulative readings (DP data)
+            filter_data: 15-minute consumption data (AP/AM data)
+            desc: Description for logging
+            
+        Returns:
+            List of YAML-ready records with cumulative values
+        """
+        yaml_data = []
+        
+        for day in day_data:
+            day_start = day["start"]
+            day_values = [value for value in filter_data if value["start"].date() == day_start.date()]
+            day_start_value = day["value"]  # This is the cumulative reading at start of day
+            prev_value = day_start_value
+            
+            for i in day_values:
+                timestamp = i["start"]
+                if timestamp.minute == 0:  # Only process hourly data (top of each hour)
+                    # Get local timezone offset
+                    tz_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
+                    tz_offset = f"{tz_offset[:3]}:{tz_offset[3:]}"  # Insert colon between hours and minutes
+                    
+                    yaml_data.append({
+                        'start': f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')}{tz_offset}",
+                        'state': round(prev_value, 2),
+                        'sum': round(prev_value, 2)
+                    })
+                prev_value += i["value"]  # Add consumption to cumulative total
+        
+        return yaml_data
 
 
 def parse_eon_file(file_path: str, delimiter: str = ';', format_override: Optional[str] = None) -> Dict:
