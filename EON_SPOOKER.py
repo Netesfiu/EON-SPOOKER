@@ -44,20 +44,32 @@ def process_day_data(day_data, filter_data, progress_bar, desc:str) -> list[dict
     for day in progress_bar(day_data, desc=f"Processing {desc} daily data"):
         day_start = day["start"]
         day_values = [value for value in filter_data if value["start"].date() == day_start.date()]
-        day_start_value = day["value"]
-        prev_value = day_start_value
+        day_start_value = day["value"]  # This is the daily cumulative from 180_280 data
+        current_cumulative = day_start_value
+        
+        # Sort consumption data by timestamp to ensure chronological order
+        day_values.sort(key=lambda x: x["start"])
+        
         for i in day_values:
             timestamp = i["start"]
+            consumption = i["value"]
+            
+            # For midnight (00:00), use the exact daily cumulative value from 180_280 data
+            if timestamp.hour == 0 and timestamp.minute == 0:
+                current_cumulative = day_start_value
+            else:
+                # For other hours, add consumption to running total
+                current_cumulative += consumption
+            
             if timestamp.minute == 0:
                 # Get local timezone offset
                 tz_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
                 tz_offset = f"{tz_offset[:3]}:{tz_offset[3:]}"  # Insert colon between hours and minutes
                 yaml_data.append({
                     'start': f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')}{tz_offset}",
-                    'state': round(prev_value, 2),
-                    'sum': round(prev_value, 2)
+                    'state': round(current_cumulative, 2),
+                    'sum': round(current_cumulative, 2)
                     })
-            prev_value += i["value"]
     return yaml_data
 
 if __name__ == "__main__":

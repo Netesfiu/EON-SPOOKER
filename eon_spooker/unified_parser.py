@@ -208,45 +208,69 @@ class UnifiedParser:
             }
         }
         
-        # Extract data from legacy result
-        if 'data' in legacy_result:
-            data = legacy_result['data']
-            
-            # Convert to hourly/daily format
-            hourly_records = []
-            daily_records = []
-            
-            for pod_name, pod_data in data.items():
-                for variable, time_series in pod_data.items():
-                    for time_str, value in time_series.items():
-                        try:
-                            # Try to parse datetime and categorize
-                            import pandas as pd
-                            dt = pd.to_datetime(time_str)
-                            
-                            record = {
-                                'datetime': dt,
-                                'pod_name': pod_name,
-                                'variable': variable,
-                                'value_kwh': float(value) if value else 0.0
-                            }
-                            
-                            # Categorize by time resolution
-                            if dt.minute == 0 and dt.second == 0:
-                                if 'hour' in variable.lower() or 'órás' in variable.lower():
-                                    hourly_records.append(record)
-                                elif 'day' in variable.lower() or 'napi' in variable.lower():
-                                    daily_records.append(record)
-                                else:
-                                    hourly_records.append(record)  # Default to hourly
-                        
-                        except Exception as e:
-                            logger.warning(f"Skipping invalid legacy record: {e}")
-                            continue
-            
-            standardized['hourly_data'] = hourly_records
-            standardized['daily_data'] = daily_records
-            standardized['metadata']['total_records'] = len(hourly_records) + len(daily_records)
+        # The legacy_result contains the parsed CSV data from CSVParser
+        # It has keys: import_hourly, export_hourly, import_daily, export_daily
+        
+        total_records = 0
+        
+        # Convert import_hourly data
+        if 'import_hourly' in legacy_result:
+            for data_point in legacy_result['import_hourly']:
+                record = {
+                    'datetime': data_point['timestamp'],
+                    'pod_name': data_point['pod_name'],
+                    'variable': 'import',
+                    'value_kwh': data_point['value']
+                }
+                standardized['hourly_data'].append(record)
+                total_records += 1
+        
+        # Convert export_hourly data
+        if 'export_hourly' in legacy_result:
+            for data_point in legacy_result['export_hourly']:
+                record = {
+                    'datetime': data_point['timestamp'],
+                    'pod_name': data_point['pod_name'],
+                    'variable': 'export',
+                    'value_kwh': data_point['value']
+                }
+                standardized['hourly_data'].append(record)
+                total_records += 1
+        
+        # Convert import_daily data
+        if 'import_daily' in legacy_result:
+            for data_point in legacy_result['import_daily']:
+                record = {
+                    'datetime': data_point['timestamp'],
+                    'pod_name': data_point['pod_name'],
+                    'variable': 'import',
+                    'value_kwh': data_point['value']
+                }
+                standardized['daily_data'].append(record)
+                total_records += 1
+        
+        # Convert export_daily data
+        if 'export_daily' in legacy_result:
+            for data_point in legacy_result['export_daily']:
+                record = {
+                    'datetime': data_point['timestamp'],
+                    'pod_name': data_point['pod_name'],
+                    'variable': 'export',
+                    'value_kwh': data_point['value']
+                }
+                standardized['daily_data'].append(record)
+                total_records += 1
+        
+        standardized['metadata']['total_records'] = total_records
+        
+        # Add date range if we have data
+        all_data = standardized['hourly_data'] + standardized['daily_data']
+        if all_data:
+            dates = [record['datetime'] for record in all_data]
+            standardized['metadata']['date_range'] = {
+                'start': min(dates),
+                'end': max(dates)
+            }
         
         return standardized
     
@@ -264,11 +288,14 @@ class UnifiedParser:
         logger.info("Processing combined cumulative and consumption data")
         
         try:
-            # Extract the data arrays using original script variable names
-            data_dp_ap = cumulative_data.get('daily_cumulative', {}).get('import', [])
-            data_dp_an = cumulative_data.get('daily_cumulative', {}).get('export', [])
-            data_ap = consumption_data.get('consumption_data', {}).get('import', [])
-            data_an = consumption_data.get('consumption_data', {}).get('export', [])
+            # Extract the data arrays using correct structure
+            data_dp_ap = cumulative_data.get('import_daily', [])  # Import daily cumulative
+            data_dp_an = cumulative_data.get('export_daily', [])  # Export daily cumulative
+            data_ap = consumption_data.get('import_hourly', [])   # Import 15-min consumption
+            data_an = consumption_data.get('export_hourly', [])   # Export 15-min consumption
+            
+            logger.info(f"Found {len(data_dp_ap)} import daily, {len(data_dp_an)} export daily")
+            logger.info(f"Found {len(data_ap)} import hourly, {len(data_an)} export hourly")
             
             # Use original script logic to generate YAML data
             yaml_data_ap = self.process_day_data(data_dp_ap, data_ap, "import")
@@ -285,10 +312,14 @@ class UnifiedParser:
     
     def process_day_data(self, day_data: List[Dict], filter_data: List[Dict], desc: str) -> List[Dict]:
         """
-        Process day data using original EON_SPOOKER.py script logic
+        Process day data using original EON_SPOOKER.py script logic EXACTLY
+        
+        Each day starts with the cumulative value from 180_280.csv, then adds
+        AP_AM consumption data in chronological order throughout the day.
+        Midnight values (00:00) always use the exact daily cumulative from 180_280.csv
         
         Args:
-            day_data: Daily cumulative readings (DP data)
+            day_data: Daily cumulative readings (DP data from 180_280.csv)
             filter_data: 15-minute consumption data (AP/AM data)
             desc: Description for logging
             
@@ -298,25 +329,45 @@ class UnifiedParser:
         yaml_data = []
         
         for day in day_data:
-            day_start = day["start"]
-            day_values = [value for value in filter_data if value["start"].date() == day_start.date()]
-            day_start_value = day["value"]  # This is the cumulative reading at start of day
-            prev_value = day_start_value
+            day_start = day["timestamp"]  # Date from 180_280.csv
+            day_start_value = day["value"]  # Cumulative reading at start of day from 180_280.csv
+            
+            # Get all consumption data for this specific day from AP_AM.csv
+            day_values = [value for value in filter_data if value["timestamp"].date() == day_start.date()]
+            
+            # Sort by timestamp to ensure chronological order
+            day_values.sort(key=lambda x: x["timestamp"])
+            
+            # Start with the daily cumulative reading from 180_280.csv
+            current_cumulative = day_start_value
+            
+            logger.debug(f"Processing {day_start.date()}: starting with {day_start_value} kWh, {len(day_values)} consumption records")
             
             for i in day_values:
-                timestamp = i["start"]
-                if timestamp.minute == 0:  # Only process hourly data (top of each hour)
+                timestamp = i["timestamp"]  # Timestamp from AP_AM data
+                consumption = i["value"]    # Consumption value from AP_AM data
+                
+                # For midnight (00:00), use the exact daily cumulative value from 180_280 data
+                if timestamp.hour == 0 and timestamp.minute == 0:
+                    current_cumulative = day_start_value
+                else:
+                    # For other hours, add consumption to running total
+                    current_cumulative += consumption
+                
+                # Only output records at the top of each hour (minute == 0)
+                if timestamp.minute == 0:
                     # Get local timezone offset
                     tz_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
                     tz_offset = f"{tz_offset[:3]}:{tz_offset[3:]}"  # Insert colon between hours and minutes
                     
+                    # Record the cumulative value (daily start + accumulated consumption)
                     yaml_data.append({
                         'start': f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')}{tz_offset}",
-                        'state': round(prev_value, 2),
-                        'sum': round(prev_value, 2)
+                        'state': round(current_cumulative, 2),
+                        'sum': round(current_cumulative, 2)
                     })
-                prev_value += i["value"]  # Add consumption to cumulative total
         
+        logger.info(f"Generated {len(yaml_data)} {desc} records using original script logic")
         return yaml_data
 
 

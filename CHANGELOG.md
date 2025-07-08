@@ -2,6 +2,13 @@
 
 All notable changes to the EON-SPOOKER Home Assistant add-on will be documented in this file.
 
+## [3.0.1] - 2025-07-08
+
+### Fixed
+- **Midnight Value Consistency**: Both original and V3.0 scripts now ensure midnight values (00:00) always match the exact daily cumulative readings from 180_280 data
+- Improved data accuracy by using 180_280 daily cumulative values as baseline for each day's midnight reading
+- Enhanced synchronization between cumulative and consumption data processing
+
 ## [3.0.0] - 2025-01-08
 
 ### Added
