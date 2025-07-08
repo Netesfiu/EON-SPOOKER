@@ -1,0 +1,134 @@
+#include <tunables/global>
+
+profile eon-spooker flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Capabilities
+  capability,
+  file,
+  signal,
+
+  # S6-Overlay
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /run/{,**} rwk,
+  /dev/tty rw,
+
+  # Bashio
+  /usr/lib/bashio/** ix,
+  /tmp/** rwk,
+
+  # Access to options.json and other addon-specific files
+  /data/** rw,
+
+  # Start new profile
+  /usr/bin/python3 cx -> python3,
+  /usr/bin/nginx cx -> nginx,
+  /usr/bin/supervisord cx -> supervisord,
+
+  profile python3 flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/python>
+
+    capability,
+
+    # Python
+    /usr/bin/python3 r,
+    /usr/lib/python3*/** r,
+
+    # Application
+    /app/** r,
+    /share/** rw,
+    /data/** rw,
+    /tmp/** rw,
+
+    # System
+    /etc/passwd r,
+    /etc/group r,
+    /etc/hosts r,
+    /etc/resolv.conf r,
+    /etc/nsswitch.conf r,
+    /etc/ssl/certs/** r,
+
+    # Network
+    network inet stream,
+    network inet dgram,
+    network inet6 stream,
+    network inet6 dgram,
+
+    # Proc filesystem
+    @{PROC}/sys/net/core/somaxconn r,
+    @{PROC}/meminfo r,
+    @{PROC}/stat r,
+    @{PROC}/uptime r,
+    @{PROC}/version r,
+    @{PROC}/sys/kernel/hostname r,
+
+    # Deny dangerous paths
+    deny @{PROC}/sys/fs/** wklx,
+    deny @{PROC}/sysrq-trigger rwklx,
+    deny @{PROC}/mem rwklx,
+    deny @{PROC}/kmem rwklx,
+    deny @{PROC}/kcore rwklx,
+    deny mount,
+    deny /sys/[^f]*/** wklx,
+  }
+
+  profile nginx flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/nameservice>
+
+    capability dac_override,
+    capability setuid,
+    capability setgid,
+
+    # Nginx
+    /usr/sbin/nginx mr,
+    /etc/nginx/** r,
+    /var/log/nginx/** w,
+    /var/lib/nginx/** rw,
+    /run/nginx.pid rw,
+    /run/nginx/** rw,
+
+    # Application files
+    /app/** r,
+
+    # Network
+    network inet stream,
+    network inet6 stream,
+
+    # Signals
+    signal receive set=term peer=unconfined,
+    signal receive set=int peer=unconfined,
+  }
+
+  profile supervisord flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+
+    capability,
+
+    # Supervisor
+    /usr/bin/supervisord mr,
+    /etc/supervisor/** r,
+    /var/log/supervisor/** rw,
+
+    # Application
+    /app/** r,
+    /usr/bin/python3 cx -> python3,
+    /usr/sbin/nginx cx -> nginx,
+
+    # System
+    /bin/** ix,
+    /usr/bin/** ix,
+
+    # Signals
+    signal,
+  }
+}
